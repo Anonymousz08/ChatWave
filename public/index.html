@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChatWave - Anonymous Chat Rooms</title>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1><i class="fas fa-comments"></i> ChatWave</h1>
+    </header>
+
+    <div class="container" id="app">
+      <div class="welcome-screen" id="welcome-screen">
+        <div class="logo">
+          <i class="fas fa-comments"></i>
+        </div>
+        <h2>Welcome to ChatWave</h2>
+        <p>
+          Connect with random strangers and have interesting conversations. Join
+          a room to start chatting anonymously!
+        </p>
+
+        <div class="input-group">
+          <input
+            type="text"
+            id="roomInput"
+            placeholder="Enter a room name"
+            autocomplete="off"
+          />
+          <button class="btn" id="join-btn">Join Room</button>
+        </div>
+
+        <button class="btn btn-secondary" id="random-room-btn">
+          <i class="fas fa-random"></i> Join Random Room
+        </button>
+
+        <div class="categories-section">
+          <h3>Popular Categories</h3>
+          <div class="category-grid">
+            <div class="category-card" data-room="music">
+              <i class="fas fa-music"></i>
+              <span>Music</span>
+            </div>
+            <div class="category-card" data-room="gaming">
+              <i class="fas fa-gamepad"></i>
+              <span>Gaming</span>
+            </div>
+            <div class="category-card" data-room="movies">
+              <i class="fas fa-film"></i>
+              <span>Movies</span>
+            </div>
+            <div class="category-card" data-room="tech">
+              <i class="fas fa-laptop-code"></i>
+              <span>Technology</span>
+            </div>
+            <div class="category-card" data-room="sports">
+              <i class="fas fa-futbol"></i>
+              <span>Sports</span>
+            </div>
+            <div class="category-card" data-room="books">
+              <i class="fas fa-book"></i>
+              <span>Books</span>
+            </div>
+            <div class="category-card" data-room="travel">
+              <i class="fas fa-plane"></i>
+              <span>Travel</span>
+            </div>
+            <div class="category-card" data-room="food">
+              <i class="fas fa-utensils"></i>
+              <span>Food</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-container" id="chat-container">
+        <div class="chat-header">
+          <div class="room-info">
+            <span class="online-indicator"></span>
+            <h3 id="room-name">Room Name</h3>
+            <span class="users-count" id="users-count">(1)</span>
+          </div>
+          <div class="user-info">
+            <span>Your identity: </span>
+            <span id="user-identity" class="user-identity">Unknown</span>
+          </div>
+          <div class="action-buttons">
+            <button class="btn btn-secondary" id="new-room-btn">
+              <i class="fas fa-random"></i> New Room
+            </button>
+            <button class="btn btn-danger" id="leave-btn">
+              <i class="fas fa-sign-out-alt"></i> Leave
+            </button>
+          </div>
+        </div>
+
+        <div class="chat-content">
+          <ul class="messages" id="messages"></ul>
+        </div>
+
+        <div class="status-bar">
+          <span id="status-text">You joined the room</span>
+          <div class="typing-indicator" id="typing-indicator">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+
+        <form id="message-form" class="message-form">
+          <input
+            type="text"
+            class="message-input"
+            id="message-input"
+            placeholder="Type a message..."
+            autocomplete="off"
+          />
+          <button type="submit" class="send-btn">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal" id="leave-modal">
+      <div class="modal-content">
+        <h3>Do you want to leave this chat?</h3>
+        <p>
+          You'll be assigned a new mysterious identity when you join another
+          room.
+        </p>
+        <div class="action-buttons">
+          <button class="btn" id="cancel-leave-btn">Cancel</button>
+          <button class="btn btn-danger" id="confirm-leave-btn">Leave</button>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      &copy; 2025 ChatWave - Anonymous Chat Rooms |
+      <a href="#" id="show-active-rooms">Show Active Rooms</a>
+    </footer>
+
+    <div class="modal" id="active-rooms-modal">
+      <div class="modal-content">
+        <h3>Active Chat Rooms</h3>
+        <ul id="active-rooms-list" class="active-rooms-list"></ul>
+        <button class="btn" id="close-rooms-modal">Close</button>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        // DOM Elements
+        const welcomeScreen = document.getElementById("welcome-screen");
+        const chatContainer = document.getElementById("chat-container");
+        const roomInput = document.getElementById("roomInput");
+        const joinBtn = document.getElementById("join-btn");
+        const randomRoomBtn = document.getElementById("random-room-btn");
+        const newRoomBtn = document.getElementById("new-room-btn");
+        const leaveBtn = document.getElementById("leave-btn");
+        const roomNameEl = document.getElementById("room-name");
+        const usersCountEl = document.getElementById("users-count");
+        const userIdentityEl = document.getElementById("user-identity");
+        const messages = document.getElementById("messages");
+        const messageForm = document.getElementById("message-form");
+        const messageInput = document.getElementById("message-input");
+        const statusText = document.getElementById("status-text");
+        const typingIndicator = document.getElementById("typing-indicator");
+        const leaveModal = document.getElementById("leave-modal");
+        const cancelLeaveBtn = document.getElementById("cancel-leave-btn");
+        const confirmLeaveBtn = document.getElementById("confirm-leave-btn");
+        const showActiveRoomsBtn = document.getElementById("show-active-rooms");
+        const activeRoomsModal = document.getElementById("active-rooms-modal");
+        const activeRoomsList = document.getElementById("active-rooms-list");
+        const closeRoomsModalBtn = document.getElementById("close-rooms-modal");
+
+        // Socket.io setup
+        const socket = io();
+        let currentRoom = "";
+        let currentIdentity = "";
+        let userCount = 1;
+        let typingTimeout;
+
+        // Helper functions
+        function generateRandomRoomName() {
+          const adjectives = [
+            "happy",
+            "brave",
+            "calm",
+            "eager",
+            "kind",
+            "smart",
+            "witty",
+            "jolly",
+          ];
+          const nouns = [
+            "falcon",
+            "tiger",
+            "dolphin",
+            "rabbit",
+            "eagle",
+            "panda",
+            "wolf",
+            "fox",
+          ];
+          const randomAdjective =
+            adjectives[Math.floor(Math.random() * adjectives.length)];
+          const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
+          const randomNumber = Math.floor(Math.random() * 1000);
+          return `${randomAdjective}-${randomNoun}-${randomNumber}`;
+        }
+
+        function joinRoom(room) {
+          if (room.trim()) {
+            currentRoom = room;
+            socket.emit("join room", room);
+
+            // Capitalize first letter of room name for display
+            const displayName = room.charAt(0).toUpperCase() + room.slice(1);
+            roomNameEl.textContent = displayName;
+
+            welcomeScreen.style.display = "none";
+            chatContainer.style.display = "flex";
+            addSystemMessage(`You joined room: ${displayName}`);
+            messageInput.focus();
+          }
+        }
+
+        function leaveRoom() {
+          socket.emit("leave room", currentRoom);
+          welcomeScreen.style.display = "flex";
+          chatContainer.style.display = "none";
+          messages.innerHTML = "";
+          currentRoom = "";
+          closeLeaveModal();
+        }
+
+        function showLeaveModal() {
+          leaveModal.style.display = "flex";
+        }
+
+        function closeLeaveModal() {
+          leaveModal.style.display = "none";
+        }
+
+        function showActiveRoomsModal() {
+          socket.emit("get active rooms");
+          activeRoomsModal.style.display = "flex";
+        }
+
+        function closeActiveRoomsModal() {
+          activeRoomsModal.style.display = "none";
+        }
+
+        function displayActiveRooms(roomsData) {
+          activeRoomsList.innerHTML = "";
+
+          if (roomsData.length === 0) {
+            const li = document.createElement("li");
+            li.textContent = "No active rooms at the moment";
+            activeRoomsList.appendChild(li);
+            return;
+          }
+
+          roomsData.forEach((room) => {
+            const li = document.createElement("li");
+
+            // Capitalize first letter of room name
+            const displayName =
+              room.name.charAt(0).toUpperCase() + room.name.slice(1);
+
+            li.innerHTML = `
+              ${displayName}
+              <span class="room-users-count">${room.userCount} users</span>
+            `;
+
+            li.addEventListener("click", () => {
+              joinRoom(room.name);
+              closeActiveRoomsModal();
+            });
+
+            activeRoomsList.appendChild(li);
+          });
+        }
+
+        function addMessage(msg, type, sender = null) {
+          const li = document.createElement("li");
+          if (sender && type === "received") {
+            li.innerHTML = `<span class="message-sender">${sender}:</span> ${msg}`;
+          } else {
+            li.textContent = msg;
+          }
+          li.className = `message ${type}`;
+          messages.appendChild(li);
+          scrollToBottom();
+        }
+
+        function addSystemMessage(msg) {
+          const li = document.createElement("li");
+          li.textContent = msg;
+          li.className = "message system";
+          messages.appendChild(li);
+          scrollToBottom();
+        }
+
+        function scrollToBottom() {
+          const chatContent = document.querySelector(".chat-content");
+          chatContent.scrollTop = chatContent.scrollHeight;
+        }
+
+        function updateUserCount(count) {
+          userCount = count;
+          usersCountEl.textContent = `(${count})`;
+        }
+
+        function updateUserIdentity(name) {
+          currentIdentity = name;
+          userIdentityEl.textContent = name;
+        }
+
+        function handleTyping() {
+          clearTimeout(typingTimeout);
+          socket.emit("typing", currentRoom);
+
+          typingTimeout = setTimeout(() => {
+            socket.emit("stop typing", currentRoom);
+          }, 3000);
+        }
+
+        // Event listeners
+        joinBtn.addEventListener("click", () => {
+          joinRoom(roomInput.value.trim());
+        });
+
+        roomInput.addEventListener("keypress", (e) => {
+          if (e.key === "Enter") {
+            joinRoom(roomInput.value.trim());
+          }
+        });
+
+        randomRoomBtn.addEventListener("click", () => {
+          const randomRoom = generateRandomRoomName();
+          roomInput.value = randomRoom;
+          joinRoom(randomRoom);
+        });
+
+        // Category card event listeners
+        const categoryCards = document.querySelectorAll(".category-card");
+        categoryCards.forEach((card) => {
+          card.addEventListener("click", () => {
+            const category = card.getAttribute("data-room");
+            joinRoom(category);
+          });
+        });
+
+        messageForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const msg = messageInput.value.trim();
+
+          if (msg) {
+            socket.emit("chat message", {
+              room: currentRoom,
+              message: msg,
+            });
+            addMessage(msg, "sent");
+            messageInput.value = "";
+            socket.emit("stop typing", currentRoom);
+          }
+        });
+
+        messageInput.addEventListener("input", handleTyping);
+
+        leaveBtn.addEventListener("click", showLeaveModal);
+        cancelLeaveBtn.addEventListener("click", closeLeaveModal);
+        confirmLeaveBtn.addEventListener("click", leaveRoom);
+
+        newRoomBtn.addEventListener("click", () => {
+          leaveRoom();
+          const randomRoom = generateRandomRoomName();
+          roomInput.value = randomRoom;
+          joinRoom(randomRoom);
+        });
+
+        showActiveRoomsBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          showActiveRoomsModal();
+        });
+
+        closeRoomsModalBtn.addEventListener("click", closeActiveRoomsModal);
+
+        // Socket event handlers
+        socket.on("connect", () => {
+          console.log("Connected to server");
+        });
+
+        socket.on("assign name", (data) => {
+          updateUserIdentity(data.name);
+          console.log("Assigned identity:", data.name);
+        });
+
+        socket.on("chat message", (data) => {
+          if (data.sender !== currentIdentity) {
+            addMessage(data.message, "received", data.sender);
+          }
+        });
+
+        socket.on("user joined", (data) => {
+          addSystemMessage(`Someone joined the room`);
+          updateUserCount(data.userCount);
+        });
+
+        socket.on("user left", (data) => {
+          addSystemMessage(`Someone left the room`);
+          updateUserCount(data.userCount);
+        });
+
+        socket.on("room users", (data) => {
+          updateUserCount(data.userCount);
+        });
+
+        socket.on("typing", (username) => {
+          statusText.textContent = `${username} is typing...`;
+          typingIndicator.style.display = "inline-block";
+        });
+
+        socket.on("stop typing", () => {
+          statusText.textContent = "Online";
+          typingIndicator.style.display = "none";
+        });
+
+        socket.on("active rooms", (data) => {
+          displayActiveRooms(data.rooms);
+        });
+      });
+    </script>
+  </body>
+</html>
