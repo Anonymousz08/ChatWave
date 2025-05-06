@@ -6,12 +6,16 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// Serve static files from "public" folder
 app.use(express.static("public"));
+
+// Optional homepage fallback (avoid 404 on root)
+app.get("/", (req, res) => {
+  res.sendFile(__dirname + "/public/index.html");
+});
 
 // Store rooms and their user counts
 const rooms = {};
-
-// Store user name mappings
 const userNames = {};
 
 // Predefined category rooms
@@ -28,93 +32,44 @@ const categoryRooms = [
 
 // Arrays for generating random mysterious names
 const adjectives = [
-  "Mysterious",
-  "Shadow",
-  "Enigmatic",
-  "Phantom",
-  "Secret",
-  "Hidden",
-  "Silent",
-  "Veiled",
-  "Cryptic",
-  "Elusive",
-  "Ghostly",
-  "Mystic",
-  "Obscure",
-  "Stealth",
-  "Twilight",
-  "Whisper",
-  "Nebulous",
-  "Ethereal",
-  "Arcane",
-  "Covert",
-  "Cosmic",
-  "Furtive",
-  "Masked",
-  "Occult",
+  "Mysterious", "Shadow", "Enigmatic", "Phantom", "Secret", "Hidden",
+  "Silent", "Veiled", "Cryptic", "Elusive", "Ghostly", "Mystic",
+  "Obscure", "Stealth", "Twilight", "Whisper", "Nebulous", "Ethereal",
+  "Arcane", "Covert", "Cosmic", "Furtive", "Masked", "Occult",
 ];
 
 const nouns = [
-  "Wanderer",
-  "Specter",
-  "Wraith",
-  "Voyager",
-  "Nomad",
-  "Hunter",
-  "Watcher",
-  "Traveler",
-  "Sentinel",
-  "Raven",
-  "Phoenix",
-  "Shade",
-  "Ghost",
-  "Owl",
-  "Wolf",
-  "Stranger",
-  "Oracle",
-  "Guardian",
-  "Knight",
-  "Echo",
-  "Phantom",
-  "Cipher",
-  "Shadow",
-  "Agent",
+  "Wanderer", "Specter", "Wraith", "Voyager", "Nomad", "Hunter",
+  "Watcher", "Traveler", "Sentinel", "Raven", "Phoenix", "Shade",
+  "Ghost", "Owl", "Wolf", "Stranger", "Oracle", "Guardian", "Knight",
+  "Echo", "Phantom", "Cipher", "Shadow", "Agent",
 ];
 
-// Initialize category rooms with 0 users
+// Initialize category rooms
 categoryRooms.forEach((room) => {
   rooms[room] = 0;
 });
 
-// Generate a random mysterious name
+// Generate a mysterious name
 function generateMysteriousName() {
-  const randomAdjective =
-    adjectives[Math.floor(Math.random() * adjectives.length)];
-  const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
-  const randomNumber = Math.floor(Math.random() * 1000);
-  return `${randomAdjective}${randomNoun}${randomNumber}`;
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const num = Math.floor(Math.random() * 1000);
+  return `${adj}${noun}${num}`;
 }
 
 io.on("connection", (socket) => {
   console.log("New user connected", socket.id);
-
-  // Assign a random mysterious name to this user
   userNames[socket.id] = generateMysteriousName();
 
   socket.on("join room", (room) => {
-    // Leave previous room if any
     if (socket.room) {
       socket.leave(socket.room);
-
-      // Update user count in previous room
       if (rooms[socket.room]) {
         rooms[socket.room]--;
-
-        // Don't delete category rooms even if empty
         if (rooms[socket.room] <= 0 && !categoryRooms.includes(socket.room)) {
           delete rooms[socket.room];
         } else {
-          // Notify room that user left
           socket.to(socket.room).emit("user left", {
             userCount: rooms[socket.room],
           });
@@ -122,63 +77,44 @@ io.on("connection", (socket) => {
       }
     }
 
-    // Join new room
     socket.join(room);
     socket.room = room;
-
-    // Update room user count
-    if (!rooms[room]) {
-      rooms[room] = 0;
-    }
+    if (!rooms[room]) rooms[room] = 0;
     rooms[room]++;
 
-    // Notify room that user joined
     socket.to(room).emit("user joined", {
       userCount: rooms[room],
     });
 
-    // Send room user count to the new user
     socket.emit("room users", {
       userCount: rooms[room],
     });
 
-    // Send user their mysterious name
     socket.emit("assign name", {
       name: userNames[socket.id],
     });
 
     console.log(
-      `User ${socket.id} (${
-        userNames[socket.id]
-      }) joined room: ${room}. Current users: ${rooms[room]}`
+      `User ${socket.id} (${userNames[socket.id]}) joined room: ${room}. Users: ${rooms[room]}`
     );
   });
 
-  socket.on("leave room", (room) => {
+  socket.on("leave room", () => {
     if (socket.room) {
       socket.leave(socket.room);
-
-      // Update room user count
       if (rooms[socket.room]) {
         rooms[socket.room]--;
-
-        // Don't delete category rooms even if empty
         if (rooms[socket.room] <= 0 && !categoryRooms.includes(socket.room)) {
           delete rooms[socket.room];
         } else {
-          // Notify room that user left
           socket.to(socket.room).emit("user left", {
             userCount: rooms[socket.room],
           });
         }
       }
 
-      console.log(
-        `User ${socket.id} (${userNames[socket.id]}) left room: ${socket.room}`
-      );
+      console.log(`User ${socket.id} (${userNames[socket.id]}) left ${socket.room}`);
       socket.room = null;
-
-      // Generate a new mysterious name for the user
       userNames[socket.id] = generateMysteriousName();
     }
   });
@@ -194,31 +130,22 @@ io.on("connection", (socket) => {
   });
 
   socket.on("typing", (room) => {
-    if (socket.room && room === socket.room) {
+    if (socket.room === room) {
       socket.to(room).emit("typing", userNames[socket.id]);
     }
   });
 
   socket.on("stop typing", (room) => {
-    if (socket.room && room === socket.room) {
+    if (socket.room === room) {
       socket.to(room).emit("stop typing");
     }
   });
 
   socket.on("get active rooms", () => {
-    const activeRooms = [];
-
-    for (const [roomName, userCount] of Object.entries(rooms)) {
-      if (userCount > 0) {
-        activeRooms.push({
-          name: roomName,
-          userCount: userCount,
-        });
-      }
-    }
-
-    // Sort by user count (descending)
-    activeRooms.sort((a, b) => b.userCount - a.userCount);
+    const activeRooms = Object.entries(rooms)
+      .filter(([_, count]) => count > 0)
+      .map(([name, count]) => ({ name, userCount: count }))
+      .sort((a, b) => b.userCount - a.userCount);
 
     socket.emit("active rooms", { rooms: activeRooms });
   });
@@ -226,28 +153,23 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log("User disconnected", socket.id);
 
-    if (socket.room) {
-      // Update room user count
-      if (rooms[socket.room]) {
-        rooms[socket.room]--;
-
-        // Don't delete category rooms even if empty
-        if (rooms[socket.room] <= 0 && !categoryRooms.includes(socket.room)) {
-          delete rooms[socket.room];
-        } else {
-          // Notify room that user left
-          socket.to(socket.room).emit("user left", {
-            userCount: rooms[socket.room],
-          });
-        }
+    if (socket.room && rooms[socket.room]) {
+      rooms[socket.room]--;
+      if (rooms[socket.room] <= 0 && !categoryRooms.includes(socket.room)) {
+        delete rooms[socket.room];
+      } else {
+        socket.to(socket.room).emit("user left", {
+          userCount: rooms[socket.room],
+        });
       }
     }
 
-    // Remove the user's name mapping
     delete userNames[socket.id];
   });
 });
 
-server.listen(3000, () => {
-  console.log("Server running at http://localhost:3000");
+// ✅ Listen on dynamic port for Render/Heroku or fallback to 3000 locally
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
 });
